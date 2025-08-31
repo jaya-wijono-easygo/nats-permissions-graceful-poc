@@ -5,8 +5,8 @@
 
 import { connect } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
 
-async function testBarAccountPermissions() {
-  console.log("🧪 Testing Bar Account Permissions");
+async function testBarUserPermissions() {
+  console.log("🧪 Testing Bar User Permissions");
   console.log("==================================");
   
   const nc = await connect({
@@ -16,7 +16,7 @@ async function testBarAccountPermissions() {
     name: "permission_test"
   });
 
-  console.log("✅ Connected as Bar account");
+  console.log("✅ Connected as Bar user");
 
   // Try to publish to a subject Bar should NOT have access to
   try {
@@ -64,7 +64,7 @@ async function testBarAccountPermissions() {
 
 async function main() {
   try {
-    await testBarAccountPermissions();
+    await testBarUserPermissions();
   } catch (error) {
     console.error("❌ Test failed:", error);
   }

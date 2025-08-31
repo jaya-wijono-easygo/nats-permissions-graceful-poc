@@ -5,7 +5,7 @@
 
 import { connect, ConnectionOptions, NatsConnection, NatsError } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
 
-interface AccountConfig {
+interface UserConfig {
   name: string;
   user: string;
   pass: string;
@@ -13,7 +13,7 @@ interface AccountConfig {
 }
 
 interface PublishConfig {
-  account: AccountConfig;
+  user: UserConfig;
   primarySubject: string;
   fallbackSubject: string;
   scenario: string;
@@ -31,10 +31,10 @@ class NATSPublisher {
   async connect(): Promise<void> {
     try {
       const opts: ConnectionOptions = {
-        servers: [this.config.account.server],
-        user: this.config.account.user,
-        pass: this.config.account.pass,
-        name: `${this.config.account.name}_publisher_${this.config.scenario}`,
+        servers: [this.config.user.server],
+        user: this.config.user.user,
+        pass: this.config.user.pass,
+        name: `${this.config.user.name}_publisher_${this.config.scenario}`,
         timeout: 5000,
         reconnect: true,
         maxReconnectAttempts: 5,
@@ -42,7 +42,7 @@ class NATSPublisher {
         debug: false
       };
 
-      console.log(`🔌 Connecting to NATS server as account: ${this.config.account.name}`);
+      console.log(`🔌 Connecting to NATS server as user: ${this.config.user.name}`);
       this.nc = await connect(opts);
       
       console.log(`✅ Connected to NATS server: ${this.nc.getServer()}`);
@@ -85,7 +85,7 @@ class NATSPublisher {
     const timestamp = new Date().toISOString();
     const messageData = JSON.stringify({
       message,
-      account: this.config.account.name,
+      user: this.config.user.name,
       scenario: this.config.scenario,
       timestamp,
       attempt: 1
@@ -93,7 +93,7 @@ class NATSPublisher {
 
     console.log(`📤 Attempting to publish message...`);
     console.log(`   📋 Message: ${message}`);
-    console.log(`   👤 Account: ${this.config.account.name}`);
+    console.log(`   👤 User: ${this.config.user.name}`);
     console.log(`   🕒 Timestamp: ${timestamp}`);
     console.log('');
 
@@ -125,7 +125,7 @@ class NATSPublisher {
       } else if (errorMsg.includes('timeout')) {
         console.log(`   🔄 Reason: Request timeout (${this.config.requestTimeout}ms)`);
       } else if (errorMsg.includes('Permissions Violation')) {
-        console.log(`   🚫 Reason: Permission denied - account lacks publish access`);
+        console.log(`   🚫 Reason: Permission denied - user lacks publish access`);
       } else if (errorMsg.includes('503')) {
         console.log(`   🚫 Reason: NoResponder Error`);
       } else {
@@ -139,7 +139,7 @@ class NATSPublisher {
     
     const fallbackMessageData = JSON.stringify({
       message,
-      account: this.config.account.name,
+      user: this.config.user.name,
       scenario: this.config.scenario,
       timestamp,
       attempt: 2,
@@ -172,7 +172,7 @@ class NATSPublisher {
       } else if (errorMsg.includes('timeout')) {
         console.log(`   🔄 Reason: Request timeout (${this.config.requestTimeout}ms)`);
       } else if (errorMsg.includes('Permissions Violation') || errorMsg.includes('503')) {
-        console.log(`   🚫 Reason: Permission denied - account lacks publish access`);
+        console.log(`   🚫 Reason: Permission denied - user lacks publish access`);
       } else {
         console.log(`   🔄 Reason: ${errorMsg}`);
       }
@@ -190,7 +190,7 @@ class NATSPublisher {
     const timestamp = new Date().toISOString();
     const messageData = JSON.stringify({
       message,
-      account: this.config.account.name,
+      user: this.config.user.name,
       scenario: this.config.scenario,
       timestamp,
       publishOnly: true
@@ -203,7 +203,7 @@ class NATSPublisher {
       console.log(`✅ Message published successfully`);
       console.log(`   📍 Subject: ${subject}`);
       console.log(`   📄 Message: ${message}`);
-      console.log(`   👤 Account: ${this.config.account.name}`);
+      console.log(`   👤 User: ${this.config.user.name}`);
       console.log('');
     } catch (error) {
       console.error(`❌ Failed to publish message:`, error);
@@ -226,7 +226,7 @@ class NATSPublisher {
 // Configuration for different scenarios
 const scenarios: Record<string, PublishConfig> = {
   'scenario1': {
-    account: {
+    user: {
       name: 'Bar',
       user: 'bar_user',
       pass: 'bar_pass',
@@ -234,11 +234,11 @@ const scenarios: Record<string, PublishConfig> = {
     },
     primarySubject: 'rpc.hello.world',
     fallbackSubject: 'broad.rpc.hello.world',
-    scenario: 'Scenario 1 - Bar account publishing with fallback',
+    scenario: 'Scenario 1 - Bar user publishing with fallback',
     requestTimeout: 2000
   },
   'scenario2': {
-    account: {
+    user: {
       name: 'Foo',
       user: 'foo_user',
       pass: 'foo_pass',
@@ -246,7 +246,7 @@ const scenarios: Record<string, PublishConfig> = {
     },
     primarySubject: 'rpc.hello.world',
     fallbackSubject: 'broad.rpc.hello.world',
-    scenario: 'Scenario 2 - Foo account publishing',
+    scenario: 'Scenario 2 - Foo user publishing',
     requestTimeout: 2000
   }
 };
@@ -309,8 +309,8 @@ async function main() {
     console.log('Usage: deno run --allow-net --allow-env publisher.ts <scenario> [message] [--interactive]');
     console.log('');
     console.log('Available scenarios:');
-    console.log('  scenario1  - Bar account trying rpc.hello.world then broad.rpc.hello.world');
-    console.log('  scenario2  - Foo account trying rpc.hello.world then broad.rpc.hello.world');
+    console.log('  scenario1  - Bar user trying rpc.hello.world then broad.rpc.hello.world');
+    console.log('  scenario2  - Foo user trying rpc.hello.world then broad.rpc.hello.world');
     console.log('');
     console.log('Examples:');
     console.log('  deno run --allow-net --allow-env publisher.ts scenario1 "Hello World"');
@@ -338,7 +338,7 @@ async function main() {
   console.log('🚀 Starting NATS Publisher POC');
   console.log('==============================');
   console.log(`📋 Scenario: ${config.scenario}`);
-  console.log(`👤 Account: ${config.account.name} (${config.account.user})`);
+  console.log(`👤 User: ${config.user.name} (${config.user.user})`);
   console.log(`🎯 Primary Subject: ${config.primarySubject}`);
   console.log(`🔄 Fallback Subject: ${config.fallbackSubject}`);
   console.log(`⏱️  Request Timeout: ${config.requestTimeout}ms`);

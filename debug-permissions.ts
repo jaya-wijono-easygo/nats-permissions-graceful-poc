@@ -1,17 +1,17 @@
 #!/usr/bin/env -S deno run --allow-net --allow-env
 
 // NATS Permissions Debug Script
-// This script tests basic publish permissions for both accounts
+// This script tests basic publish permissions for both users
 
 import { connect, ConnectionOptions, NatsConnection } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
 
-interface TestAccount {
+interface TestUser {
   name: string;
   user: string;
   pass: string;
 }
 
-const accounts: TestAccount[] = [
+const users: TestUser[] = [
   { name: "Foo", user: "foo_user", pass: "foo_pass" },
   { name: "Bar", user: "bar_user", pass: "bar_pass" }
 ];
@@ -23,8 +23,8 @@ const subjects = [
   "_INBOX.test"
 ];
 
-async function testAccount(account: TestAccount) {
-  console.log(`\n🔍 Testing ${account.name} Account (${account.user})`);
+async function testUser(user: TestUser) {
+  console.log(`\n🔍 Testing ${user.name} User (${user.user})`);
   console.log("=".repeat(50));
 
   let nc: NatsConnection;
@@ -32,9 +32,9 @@ async function testAccount(account: TestAccount) {
   try {
     const opts: ConnectionOptions = {
       servers: ["localhost:4222"],
-      user: account.user,
-      pass: account.pass,
-      name: `debug_${account.name}`,
+      user: user.user,
+      pass: user.pass,
+      name: `debug_${user.name}`,
       timeout: 5000
     };
 
@@ -48,7 +48,7 @@ async function testAccount(account: TestAccount) {
   // Test publishing to each subject
   for (const subject of subjects) {
     try {
-      const message = `Test from ${account.name} to ${subject}`;
+      const message = `Test from ${user.name} to ${subject}`;
       nc.publish(subject, message);
       await nc.flush(); // Ensure message is sent
       console.log(`✅ PUBLISH ${subject} - SUCCESS`);
@@ -79,15 +79,15 @@ async function testAccount(account: TestAccount) {
 async function main() {
   console.log("🚀 NATS Permissions Debug Tool");
   console.log("===============================");
-  console.log("Testing basic publish/subscribe permissions for all accounts");
+  console.log("Testing basic publish/subscribe permissions for all users");
   
-  for (const account of accounts) {
-    await testAccount(account);
+  for (const user of users) {
+    await testUser(user);
   }
 
   console.log("\n📋 Expected Results:");
-  console.log("Foo Account should succeed on all subjects");
-  console.log("Bar Account should fail on rpc.hello.world but succeed on broad.rpc.*");
+  console.log("Foo User should succeed on all subjects");
+  console.log("Bar User should fail on rpc.hello.world but succeed on broad.rpc.*");
   console.log("\n✅ Debug test completed");
 }
 

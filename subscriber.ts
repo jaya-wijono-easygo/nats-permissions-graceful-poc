@@ -5,7 +5,7 @@
 
 import { connect, ConnectionOptions, NatsConnection, Subscription } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
 
-interface AccountConfig {
+interface UserConfig {
   name: string;
   user: string;
   pass: string;
@@ -13,7 +13,7 @@ interface AccountConfig {
 }
 
 interface SubscriberConfig {
-  account: AccountConfig;
+  user: UserConfig;
   subjects: string[];
   scenario: string;
 }
@@ -31,10 +31,10 @@ class NATSSubscriber {
   async connect(): Promise<void> {
     try {
       const opts: ConnectionOptions = {
-        servers: [this.config.account.server],
-        user: this.config.account.user,
-        pass: this.config.account.pass,
-        name: `${this.config.account.name}_subscriber_${this.config.scenario}`,
+        servers: [this.config.user.server],
+        user: this.config.user.user,
+        pass: this.config.user.pass,
+        name: `${this.config.user.name}_subscriber_${this.config.scenario}`,
         timeout: 5000,
         reconnect: true,
         maxReconnectAttempts: 5,
@@ -42,7 +42,7 @@ class NATSSubscriber {
         debug: false
       };
 
-      console.log(`🔌 Connecting to NATS server as account: ${this.config.account.name}`);
+      console.log(`🔌 Connecting to NATS server as user: ${this.config.user.name}`);
       this.nc = await connect(opts);
       
       console.log(`✅ Connected to NATS server: ${this.nc.getServer()}`);
@@ -102,7 +102,7 @@ class NATSSubscriber {
 
     console.log(`🎯 All subscriptions active. Waiting for messages...`);
     console.log(`📊 Scenario: ${this.config.scenario}`);
-    console.log(`👤 Account: ${this.config.account.name}`);
+    console.log(`👤 User: ${this.config.user.name}`);
     console.log(`🔍 Monitoring subjects: ${this.config.subjects.join(', ')}`);
     console.log('');
   }
@@ -121,7 +121,7 @@ class NATSSubscriber {
         console.log(`   🎯 Subscribed via: ${subject}`);
         console.log(`   📄 Data: ${msgData}`);
         console.log(`   🔄 Reply-To: ${reply}`);
-        console.log(`   👤 Account: ${this.config.account.name}`);
+        console.log(`   👤 User: ${this.config.user.name}`);
         console.log('');
 
         // If this is a request message, send a reply
@@ -129,7 +129,7 @@ class NATSSubscriber {
           try {
             const replyData = JSON.stringify({
               status: 'received',
-              account: this.config.account.name,
+              user: this.config.user.name,
               receivedSubject: msg.subject,
               subscribedVia: subject,
               timestamp: timestamp,
@@ -186,24 +186,24 @@ class NATSSubscriber {
 // Configuration for different scenarios
 const scenarios: Record<string, SubscriberConfig> = {
   'scenario1': {
-    account: {
+    user: {
       name: 'Foo',
       user: 'foo_user',
       pass: 'foo_pass',
       server: 'nats://localhost:4222'
     },
     subjects: ['rpc.hello.world', 'broad.rpc.>'],
-    scenario: 'Scenario 1 - Foo account dual subscription'
+    scenario: 'Scenario 1 - Foo user dual subscription'
   },
   'scenario2': {
-    account: {
+    user: {
       name: 'Bar',
       user: 'bar_user',
       pass: 'bar_pass',
       server: 'nats://localhost:4222'
     },
     subjects: ['rpc.hello.world', 'broad.rpc.>'],
-    scenario: 'Scenario 2 - Bar account dual subscription'
+    scenario: 'Scenario 2 - Bar user dual subscription'
   }
 };
 
@@ -217,8 +217,8 @@ async function main() {
     console.log('Usage: deno run --allow-net --allow-env subscriber.ts <scenario>');
     console.log('');
     console.log('Available scenarios:');
-    console.log('  scenario1  - Foo account subscribing to both rpc.hello.world and broad.rpc.>');
-    console.log('  scenario2  - Bar account subscribing to both rpc.hello.world and broad.rpc.>');
+    console.log('  scenario1  - Foo user subscribing to both rpc.hello.world and broad.rpc.>');
+    console.log('  scenario2  - Bar user subscribing to both rpc.hello.world and broad.rpc.>');
     console.log('');
     console.log('Examples:');
     console.log('  deno run --allow-net --allow-env subscriber.ts scenario1');
@@ -239,7 +239,7 @@ async function main() {
   console.log('🚀 Starting NATS Subscriber POC');
   console.log('===============================');
   console.log(`📋 Scenario: ${config.scenario}`);
-  console.log(`👤 Account: ${config.account.name} (${config.account.user})`);
+  console.log(`👤 User: ${config.user.name} (${config.user.user})`);
   console.log(`🎯 Subjects: ${config.subjects.join(', ')}`);
   console.log('');
 

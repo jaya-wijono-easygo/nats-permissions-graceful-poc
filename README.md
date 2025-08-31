@@ -1,14 +1,14 @@
-# NATS Account Permissions POC
+# NATS User Permissions POC
 
-A Proof of Concept demonstrating NATS messaging behavior with account-based permissions and automatic subject routing fallbacks.
+A Proof of Concept demonstrating NATS messaging behavior with user-based permissions and automatic subject routing fallbacks.
 
 ## 🎯 Purpose
 
-This POC demonstrates how NATS server permissions control message routing between different accounts and how applications can implement intelligent fallback patterns when publishing to subjects with restricted access.
+This POC demonstrates how NATS server permissions control message routing between different users and how applications can implement intelligent fallback patterns when publishing to subjects with restricted access.
 
 ### Key Concepts Demonstrated
 
-1. **Account-Based Permissions**: Different user accounts with varying subject access levels
+1. **User-Based Permissions**: Different users with varying subject access levels
 2. **Permission-Based Routing**: Messages automatically route to allowed subjects when primary subjects are restricted
 3. **Request/Reply Patterns**: Demonstrating how NATS request/reply works across permission boundaries
 4. **Dual Subscriptions**: Single subscriber listening to multiple subject patterns simultaneously
@@ -17,28 +17,28 @@ This POC demonstrates how NATS server permissions control message routing betwee
 ## 📋 Test Scenarios
 
 ### Scenario 1: Limited Publisher → Full Access Subscriber
-- **Publisher**: Bar account (limited permissions)
-- **Subscriber**: Foo account (full permissions)
+- **Publisher**: Bar user (limited permissions)
+- **Subscriber**: Foo user (full permissions)
 - **Expected Behavior**: Bar tries `rpc.hello.world` (denied), falls back to `broad.rpc.hello.world` (allowed)
 
 ### Scenario 2: Full Access Publisher → Limited Subscriber  
-- **Publisher**: Foo account (full permissions)
-- **Subscriber**: Bar account (limited permissions)
-- **Expected Behavior**: Message routes to `broad.rpc.hello.world` where Bar account can subscribe
+- **Publisher**: Foo user (full permissions)
+- **Subscriber**: Bar user (limited permissions)
+- **Expected Behavior**: Message routes to `broad.rpc.hello.world` where Bar user can subscribe
 
 ## 🏗️ Architecture
 
-### Account Permissions
+### User Permissions
 
-| Account | Username | Password | Allowed Subjects |
+| User | Username | Password | Allowed Subjects |
 |---------|----------|----------|------------------|
 | **Foo** | `foo_user` | `foo_pass` | `rpc.hello.world`, `_INBOX.>`, `broad.rpc.>` |
 | **Bar** | `bar_user` | `bar_pass` | `_INBOX.>`, `broad.rpc.>` (no `rpc.hello.world`) |
 
 ### Subject Patterns
 - `rpc.hello.world` - Specific RPC endpoint (Foo only)
-- `broad.rpc.>` - Wildcard for broad RPC access (both accounts)
-- `_INBOX.>` - NATS reply subjects (both accounts)
+- `broad.rpc.>` - Wildcard for broad RPC access (both users)
+- `_INBOX.>` - NATS reply subjects (both users)
 
 ### Network Flow
 ```
@@ -105,7 +105,7 @@ bash nats-server-config.sh
 
 This creates:
 - `nats-poc-config/` directory
-- `nats-server.conf` - Server configuration with accounts
+- `nats-server.conf` - Server configuration with users
 - `start-server.sh` - Server startup script
 - `test-connectivity.sh` - Connection verification script
 
@@ -145,7 +145,7 @@ deno run --allow-net --allow-env subscriber.ts scenario1
 **Terminal 2** - Run Bar publisher:
 ```bash
 # Single message test
-deno run --allow-net --allow-env publisher.ts scenario1 "Hello from Bar account"
+deno run --allow-net --allow-env publisher.ts scenario1 "Hello from Bar user"
 
 # Interactive mode (multiple messages)
 deno run --allow-net --allow-env publisher.ts scenario1 --interactive
@@ -161,7 +161,7 @@ deno run --allow-net --allow-env subscriber.ts scenario2
 **Terminal 2** - Run Foo publisher:
 ```bash
 # Single message test  
-deno run --allow-net --allow-env publisher.ts scenario2 "Hello from Foo account"
+deno run --allow-net --allow-env publisher.ts scenario2 "Hello from Foo user"
 
 # Interactive mode
 deno run --allow-net --allow-env publisher.ts scenario2 --interactive
@@ -171,11 +171,11 @@ deno run --allow-net --allow-env publisher.ts scenario2 --interactive
 
 ### Scenario 1 Output
 
-**Publisher (Bar account):**
+**Publisher (Bar user):**
 ```bash
 🎯 Attempt 1: Trying primary subject "rpc.hello.world"
 ⚠️  Primary subject failed: no responders available
-   🚫 Reason: Permission denied - account lacks publish access
+   🚫 Reason: Permission denied - user lacks publish access
 
 🎯 Attempt 2: Trying fallback subject "broad.rpc.hello.world"  
 ✅ SUCCESS: Fallback subject responded!
@@ -183,31 +183,31 @@ deno run --allow-net --allow-env publisher.ts scenario2 --interactive
    📝 Note: Message was routed via fallback
 ```
 
-**Subscriber (Foo account):**
+**Subscriber (Foo user):**
 ```bash
 📨 Message #1
    📍 Subject: broad.rpc.hello.world
    🎯 Subscribed via: broad.rpc.>
-   📄 Data: {"message":"Hello from Bar account",...}
-   👤 Account: Foo
+   📄 Data: {"message":"Hello from Bar user",...}
+   👤 User: Foo
 ```
 
 ### Scenario 2 Output
 
-**Publisher (Foo account):**
+**Publisher (Foo user):**
 ```bash
 🎯 Attempt 1: Trying primary subject "rpc.hello.world"
 ✅ SUCCESS: Primary subject responded!
    📍 Subject: rpc.hello.world
 ```
 
-**Subscriber (Bar account):**
+**Subscriber (Bar user):**
 ```bash
 📨 Message #1
    📍 Subject: broad.rpc.hello.world
    🎯 Subscribed via: broad.rpc.>
-   📄 Data: {"message":"Hello from Foo account",...}
-   👤 Account: Bar
+   📄 Data: {"message":"Hello from Foo user",...}
+   👤 User: Bar
 ```
 
 ## 🔧 Interactive Mode Commands
@@ -229,7 +229,7 @@ exit
 
 ### Permission Testing
 ```bash
-# Test which subjects each account can access
+# Test which subjects each user can access
 deno run --allow-net --allow-env debug-permissions.ts
 
 # Simple permission validation
@@ -261,7 +261,7 @@ The NATS server enforces permissions at the protocol level:
 - **Request timeouts**: Occur when no authorized subscribers exist
 
 ### Message Routing Behavior
-1. **Direct routing**: When both accounts have access to the same subject
+1. **Direct routing**: When both users have access to the same subject
 2. **Fallback routing**: When publisher lacks permission for primary subject
 3. **No routing**: When neither primary nor fallback subjects are accessible
 

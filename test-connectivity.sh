@@ -2,22 +2,22 @@
 
 echo "Testing NATS Server connectivity..."
 
-# Test Foo account
-echo "Testing Foo account connection..."
+# Test Foo user
+echo "Testing Foo user connection..."
 if command -v nats &> /dev/null; then
-    echo "Publishing test message with Foo account..."
+    echo "Publishing test message with Foo user..."
     echo "test message" | nats pub --server=nats://foo_user:foo_pass@localhost:4222 "rpc.hello.world"
-    echo "✓ Foo account connection successful"
+    echo "✓ Foo user connection successful"
 else
     echo "NATS CLI not available. Install with: go install github.com/nats-io/natscli/nats@latest"
 fi
 
-# Test Bar account
-echo "Testing Bar account connection..."
+# Test Bar user
+echo "Testing Bar user connection..."
 if command -v nats &> /dev/null; then
-    echo "Publishing test message with Bar account..."
+    echo "Publishing test message with Bar user..."
     echo "test message" | nats pub --server=nats://bar_user:bar_pass@localhost:4222 "broad.rpc.test"
-    echo "✓ Bar account connection successful"
+    echo "✓ Bar user connection successful"
 fi
 
 echo "Server info available at: http://localhost:8222/varz"
