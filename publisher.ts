@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 // NATS Publisher POC - Request with Fallback Test
 // This script attempts to publish to a primary subject, then falls back to an alternative
@@ -266,13 +266,19 @@ async function runInteractiveMode(publisher: NATSPublisher, config: PublishConfi
   console.log('   - Type "exit" or "quit" to stop');
   console.log('');
 
-  const decoder = new TextDecoder();
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
   
-  for await (const chunk of Deno.stdin.readable) {
-    const input = decoder.decode(chunk).trim();
+  console.log('💬 Enter message (or "exit" to quit):');
+  
+  for await (const input of rl) {
     
     if (input === 'exit' || input === 'quit') {
       console.log('👋 Exiting interactive mode...');
+      rl.close();
       break;
     }
 
@@ -304,6 +310,8 @@ async function runInteractiveMode(publisher: NATSPublisher, config: PublishConfi
 
     console.log('💬 Enter next message (or "exit" to quit):');
   }
+  
+  rl.close();
 }
 
 async function main() {
@@ -313,16 +321,16 @@ async function main() {
     console.log('NATS Publisher POC');
     console.log('==================');
     console.log('');
-    console.log('Usage: deno run --allow-net --allow-env publisher.ts <scenario> [message] [--interactive]');
+    console.log('Usage: npx tsx publisher.ts <scenario> [message] [--interactive]');
     console.log('');
     console.log('Available scenarios:');
     console.log('  scenario1  - Bar user (TLS cert: bar-cert.pem) trying rpc.hello.world then broad.rpc.hello.world');
     console.log('  scenario2  - Foo user (TLS cert: foo-cert.pem) trying rpc.hello.world then broad.rpc.hello.world');
     console.log('');
     console.log('Examples:');
-    console.log('  deno run --allow-net --allow-env publisher.ts scenario1 "Hello World"');
-    console.log('  deno run --allow-net --allow-env publisher.ts scenario2 --interactive');
-    console.log('  deno run --allow-net --allow-env publisher.ts scenario1');
+    console.log('  npx tsx publisher.ts scenario1 "Hello World"');
+    console.log('  npx tsx publisher.ts scenario2 --interactive');
+    console.log('  npx tsx publisher.ts scenario1');
     console.log('');
     console.log('Options:');
     console.log('  --interactive  Start in interactive mode for multiple messages');

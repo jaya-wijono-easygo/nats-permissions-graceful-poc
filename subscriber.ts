@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 // NATS Subscriber POC - Dual Subscription Test
 // This script subscribes to multiple subjects and processes incoming messages
@@ -221,15 +221,15 @@ async function main() {
     console.log('NATS Subscriber POC');
     console.log('==================');
     console.log('');
-    console.log('Usage: deno run --allow-net --allow-env subscriber.ts <scenario>');
+    console.log('Usage: npx tsx subscriber.ts <scenario>');
     console.log('');
     console.log('Available scenarios:');
     console.log('  scenario1  - Foo user (TLS cert: foo-cert.pem) subscribing to both rpc.hello.world and broad.rpc.>');
     console.log('  scenario2  - Bar user (TLS cert: bar-cert.pem) subscribing to both rpc.hello.world and broad.rpc.>');
     console.log('');
     console.log('Examples:');
-    console.log('  deno run --allow-net --allow-env subscriber.ts scenario1');
-    console.log('  deno run --allow-net --allow-env subscriber.ts scenario2');
+    console.log('  npx tsx subscriber.ts scenario1');
+    console.log('  npx tsx subscriber.ts scenario2');
     console.log('');
     process.exit(1);
   }
