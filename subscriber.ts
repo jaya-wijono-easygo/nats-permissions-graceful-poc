@@ -1,14 +1,16 @@
-#!/usr/bin/env -S deno run --allow-net --allow-env
+#!/usr/bin/env bun
 
 // NATS Subscriber POC - Dual Subscription Test
 // This script subscribes to multiple subjects and processes incoming messages
 
-import { connect, ConnectionOptions, NatsConnection, Subscription } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
+import { connect, ConnectionOptions, NatsConnection, Subscription } from "nats";
+import { readFileSync } from "fs";
 
 interface UserConfig {
   name: string;
-  user: string;
-  pass: string;
+  certFile: string;
+  keyFile: string;
+  caFile: string;
   server: string;
 }
 
@@ -32,8 +34,11 @@ class NATSSubscriber {
     try {
       const opts: ConnectionOptions = {
         servers: [this.config.user.server],
-        user: this.config.user.user,
-        pass: this.config.user.pass,
+        tls: {
+          cert: readFileSync(this.config.user.certFile),
+          key: readFileSync(this.config.user.keyFile),
+          ca: readFileSync(this.config.user.caFile)
+        },
         name: `${this.config.user.name}_subscriber_${this.config.scenario}`,
         timeout: 5000,
         reconnect: true,
@@ -188,9 +193,10 @@ const scenarios: Record<string, SubscriberConfig> = {
   'scenario1': {
     user: {
       name: 'Foo',
-      user: 'foo_user',
-      pass: 'foo_pass',
-      server: 'nats://localhost:4222'
+      certFile: './certs/foo-cert.pem',
+      keyFile: './certs/foo-key.pem',
+      caFile: './certs/ca-cert.pem',
+      server: 'tls://localhost:4222'
     },
     subjects: ['rpc.hello.world', 'broad.rpc.>'],
     scenario: 'Scenario 1 - Foo user dual subscription'
@@ -198,9 +204,10 @@ const scenarios: Record<string, SubscriberConfig> = {
   'scenario2': {
     user: {
       name: 'Bar',
-      user: 'bar_user',
-      pass: 'bar_pass',
-      server: 'nats://localhost:4222'
+      certFile: './certs/bar-cert.pem',
+      keyFile: './certs/bar-key.pem',
+      caFile: './certs/ca-cert.pem',
+      server: 'tls://localhost:4222'
     },
     subjects: ['rpc.hello.world', 'broad.rpc.>'],
     scenario: 'Scenario 2 - Bar user dual subscription'
@@ -208,7 +215,7 @@ const scenarios: Record<string, SubscriberConfig> = {
 };
 
 async function main() {
-  const args = Deno.args;
+  const args = process.argv.slice(2);
   
   if (args.length === 0) {
     console.log('NATS Subscriber POC');
@@ -217,14 +224,14 @@ async function main() {
     console.log('Usage: deno run --allow-net --allow-env subscriber.ts <scenario>');
     console.log('');
     console.log('Available scenarios:');
-    console.log('  scenario1  - Foo user subscribing to both rpc.hello.world and broad.rpc.>');
-    console.log('  scenario2  - Bar user subscribing to both rpc.hello.world and broad.rpc.>');
+    console.log('  scenario1  - Foo user (TLS cert: foo-cert.pem) subscribing to both rpc.hello.world and broad.rpc.>');
+    console.log('  scenario2  - Bar user (TLS cert: bar-cert.pem) subscribing to both rpc.hello.world and broad.rpc.>');
     console.log('');
     console.log('Examples:');
     console.log('  deno run --allow-net --allow-env subscriber.ts scenario1');
     console.log('  deno run --allow-net --allow-env subscriber.ts scenario2');
     console.log('');
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const scenarioName = args[0];
@@ -233,13 +240,13 @@ async function main() {
   if (!config) {
     console.error(`❌ Unknown scenario: ${scenarioName}`);
     console.log('Available scenarios:', Object.keys(scenarios).join(', '));
-    Deno.exit(1);
+    process.exit(1);
   }
 
   console.log('🚀 Starting NATS Subscriber POC');
   console.log('===============================');
   console.log(`📋 Scenario: ${config.scenario}`);
-  console.log(`👤 User: ${config.user.name} (${config.user.user})`);
+  console.log(`👤 User: ${config.user.name} (${config.user.certFile})`);
   console.log(`🎯 Subjects: ${config.subjects.join(', ')}`);
   console.log('');
 
@@ -248,11 +255,11 @@ async function main() {
   // Handle graceful shutdown
   const cleanup = async () => {
     await subscriber.gracefulShutdown();
-    Deno.exit(0);
+    process.exit(0);
   };
 
-  Deno.addSignalListener('SIGINT', cleanup);
-  Deno.addSignalListener('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 
   try {
     await subscriber.connect();
@@ -268,11 +275,9 @@ async function main() {
   } catch (error) {
     console.error('❌ Subscriber failed:', error);
     await cleanup();
-    Deno.exit(1);
+    process.exit(1);
   }
 }
 
 // Run the main function
-if (import.meta.main) {
-  main();
-}
+main();

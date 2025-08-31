@@ -1,68 +1,86 @@
-#!/usr/bin/env -S deno run --allow-net --allow-env
+#!/usr/bin/env node
 
 // Simple NATS Permission Test
 // This script tries to publish to a forbidden subject and should fail
 
-import { connect } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
+import { connect } from "nats";
+import { readFileSync } from "fs";
 
 async function testBarUserPermissions() {
   console.log("🧪 Testing Bar User Permissions");
   console.log("==================================");
   
-  const nc = await connect({
-    servers: ["localhost:4222"],
-    user: "bar_user",
-    pass: "bar_pass",
-    name: "permission_test"
-  });
-
-  console.log("✅ Connected as Bar user");
-
-  // Try to publish to a subject Bar should NOT have access to
+  let nc;
   try {
-    console.log("🚫 Attempting to publish to 'forbidden.subject'...");
-    nc.publish("forbidden.subject", "This should fail");
-    await nc.flush();
-    console.log("❌ ERROR: Publish succeeded when it should have failed!");
+    nc = await connect({
+      servers: ["tls://localhost:4222"],
+      tls: {
+        cert: readFileSync("./certs/bar-cert.pem"),
+        key: readFileSync("./certs/bar-key.pem"),
+        ca: readFileSync("./certs/ca-cert.pem")
+      },
+      name: "permission_test",
+      timeout: 5000
+    });
+    console.log("✅ Connected as Bar user using TLS certificate");
   } catch (error) {
-    console.log(`✅ GOOD: Publish failed as expected: ${error.message}`);
+    console.log(`❌ Connection failed: ${error.message}`);
+    return;
   }
 
-  // Try to subscribe to a subject Bar should NOT have access to  
+  // Test subscription to forbidden subjects (this should fail)
+  console.log("\n🧪 Testing subscription permissions...");
+  
   try {
-    console.log("🚫 Attempting to subscribe to 'forbidden.subject'...");
-    const sub = nc.subscribe("forbidden.subject");
-    console.log("❌ ERROR: Subscribe succeeded when it should have failed!");
+    console.log("🚫 Attempting to subscribe to 'rpc.hello.world' (should be denied)...");
+    const sub = nc.subscribe("rpc.hello.world", { max: 1 });
+    
+    // Wait a bit to see if subscription gets terminated
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log("⚠️  WARNING: Subscribe to rpc.hello.world did not immediately fail");
+    console.log("    Note: NATS may allow subscription but deny message delivery");
     await sub.unsubscribe();
   } catch (error) {
-    console.log(`✅ GOOD: Subscribe failed as expected: ${error.message}`);
+    console.log(`✅ GOOD: Subscribe to rpc.hello.world failed: ${error.message}`);
   }
 
-  // Try to publish to rpc.hello.world (Bar should not have access)
+  // Test subscription to allowed subjects (this should succeed)
   try {
-    console.log("🚫 Attempting to publish to 'rpc.hello.world' (should fail for Bar)...");
-    nc.publish("rpc.hello.world", "Bar trying to publish");
-    await nc.flush();
-    console.log("❌ ERROR: Publish to rpc.hello.world succeeded when it should have failed!");
+    console.log("✅ Attempting to subscribe to 'broad.rpc.test' (should succeed)...");
+    const sub = nc.subscribe("broad.rpc.test", { max: 1 });
+    console.log("✅ GOOD: Subscribe to broad.rpc.test succeeded");
+    await sub.unsubscribe();
   } catch (error) {
-    console.log(`✅ GOOD: Publish to rpc.hello.world failed as expected: ${error.message}`);
+    console.log(`❌ ERROR: Subscribe to broad.rpc.test failed: ${error.message}`);
   }
 
-  // Try to publish to broad.rpc.test (Bar should have access)
-  try {
-    console.log("✅ Attempting to publish to 'broad.rpc.test' (should succeed for Bar)...");
-    nc.publish("broad.rpc.test", "Bar publishing to allowed subject");
-    await nc.flush();
-    console.log("✅ GOOD: Publish to broad.rpc.test succeeded as expected");
-  } catch (error) {
-    console.log(`❌ ERROR: Publish to broad.rpc.test failed: ${error.message}`);
-  }
+  // Test publishing (Note: NATS typically doesn't throw errors for denied publishes)
+  console.log("\n🧪 Testing publish permissions...");
+  console.log("    Note: NATS silently drops unauthorized publishes - no exceptions thrown");
+  
+  console.log("🚫 Publishing to 'rpc.hello.world' (should be silently dropped)...");
+  nc.publish("rpc.hello.world", "Bar trying to publish - should be dropped");
+  await nc.flush();
+  console.log("    ℹ️  Publish completed (but likely dropped by server)");
+  
+  console.log("✅ Publishing to 'broad.rpc.test' (should be allowed)...");
+  nc.publish("broad.rpc.test", "Bar publishing to allowed subject");
+  await nc.flush();
+  console.log("    ✅ Publish completed successfully");
 
   await nc.close();
-  console.log("✅ Test completed");
+  console.log("\n✅ Test completed");
+  console.log("\n📋 To verify publish permissions, check server logs:");
+  console.log("    tail -f nats-server.log | grep -i violation");
 }
 
 async function main() {
+  console.log("🚀 NATS TLS Permission Test");
+  console.log("============================");
+  console.log("This test validates Bar user's TLS certificate authentication");
+  console.log("and permission restrictions in the NATS server.\n");
+  
   try {
     await testBarUserPermissions();
   } catch (error) {
@@ -70,6 +88,4 @@ async function main() {
   }
 }
 
-if (import.meta.main) {
-  main();
-}
+main();

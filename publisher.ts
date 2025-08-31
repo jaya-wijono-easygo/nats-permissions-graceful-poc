@@ -1,14 +1,16 @@
-#!/usr/bin/env -S deno run --allow-net --allow-env
+#!/usr/bin/env bun
 
 // NATS Publisher POC - Request with Fallback Test
 // This script attempts to publish to a primary subject, then falls back to an alternative
 
-import { connect, ConnectionOptions, NatsConnection, NatsError } from "https://deno.land/x/nats@v1.28.2/src/mod.ts";
+import { connect, ConnectionOptions, NatsConnection, NatsError } from "nats";
+import { readFileSync } from "fs";
 
 interface UserConfig {
   name: string;
-  user: string;
-  pass: string;
+  certFile: string;
+  keyFile: string;
+  caFile: string;
   server: string;
 }
 
@@ -32,8 +34,11 @@ class NATSPublisher {
     try {
       const opts: ConnectionOptions = {
         servers: [this.config.user.server],
-        user: this.config.user.user,
-        pass: this.config.user.pass,
+        tls: {
+          cert: readFileSync(this.config.user.certFile),
+          key: readFileSync(this.config.user.keyFile),
+          ca: readFileSync(this.config.user.caFile)
+        },
         name: `${this.config.user.name}_publisher_${this.config.scenario}`,
         timeout: 5000,
         reconnect: true,
@@ -228,9 +233,10 @@ const scenarios: Record<string, PublishConfig> = {
   'scenario1': {
     user: {
       name: 'Bar',
-      user: 'bar_user',
-      pass: 'bar_pass',
-      server: 'nats://localhost:4222'
+      certFile: './certs/bar-cert.pem',
+      keyFile: './certs/bar-key.pem',
+      caFile: './certs/ca-cert.pem',
+      server: 'tls://localhost:4222'
     },
     primarySubject: 'rpc.hello.world',
     fallbackSubject: 'broad.rpc.hello.world',
@@ -240,9 +246,10 @@ const scenarios: Record<string, PublishConfig> = {
   'scenario2': {
     user: {
       name: 'Foo',
-      user: 'foo_user',
-      pass: 'foo_pass',
-      server: 'nats://localhost:4222'
+      certFile: './certs/foo-cert.pem',
+      keyFile: './certs/foo-key.pem',
+      caFile: './certs/ca-cert.pem',
+      server: 'tls://localhost:4222'
     },
     primarySubject: 'rpc.hello.world',
     fallbackSubject: 'broad.rpc.hello.world',
@@ -300,7 +307,7 @@ async function runInteractiveMode(publisher: NATSPublisher, config: PublishConfi
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = process.argv.slice(2);
   
   if (args.length === 0) {
     console.log('NATS Publisher POC');
@@ -309,8 +316,8 @@ async function main() {
     console.log('Usage: deno run --allow-net --allow-env publisher.ts <scenario> [message] [--interactive]');
     console.log('');
     console.log('Available scenarios:');
-    console.log('  scenario1  - Bar user trying rpc.hello.world then broad.rpc.hello.world');
-    console.log('  scenario2  - Foo user trying rpc.hello.world then broad.rpc.hello.world');
+    console.log('  scenario1  - Bar user (TLS cert: bar-cert.pem) trying rpc.hello.world then broad.rpc.hello.world');
+    console.log('  scenario2  - Foo user (TLS cert: foo-cert.pem) trying rpc.hello.world then broad.rpc.hello.world');
     console.log('');
     console.log('Examples:');
     console.log('  deno run --allow-net --allow-env publisher.ts scenario1 "Hello World"');
@@ -320,7 +327,7 @@ async function main() {
     console.log('Options:');
     console.log('  --interactive  Start in interactive mode for multiple messages');
     console.log('');
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const scenarioName = args[0];
@@ -329,7 +336,7 @@ async function main() {
   if (!config) {
     console.error(`❌ Unknown scenario: ${scenarioName}`);
     console.log('Available scenarios:', Object.keys(scenarios).join(', '));
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const isInteractive = args.includes('--interactive');
@@ -338,7 +345,7 @@ async function main() {
   console.log('🚀 Starting NATS Publisher POC');
   console.log('==============================');
   console.log(`📋 Scenario: ${config.scenario}`);
-  console.log(`👤 User: ${config.user.name} (${config.user.user})`);
+  console.log(`👤 User: ${config.user.name} (${config.user.certFile})`);
   console.log(`🎯 Primary Subject: ${config.primarySubject}`);
   console.log(`🔄 Fallback Subject: ${config.fallbackSubject}`);
   console.log(`⏱️  Request Timeout: ${config.requestTimeout}ms`);
@@ -367,6 +374,4 @@ async function main() {
 }
 
 // Run the main function
-if (import.meta.main) {
-  main();
-}
+main();

@@ -4,41 +4,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a NATS Proof of Concept demonstrating user-based permissions and graceful fallback patterns in NATS messaging. The project showcases how different users with varying subject access levels handle message routing and automatic fallbacks when publishing to restricted subjects.
+This is a NATS Proof of Concept demonstrating TLS certificate-based user authentication, permissions, and graceful fallback patterns in NATS messaging. The project showcases how different users authenticated via TLS client certificates with varying subject access levels handle message routing and automatic fallbacks when publishing to restricted subjects.
 
 ## Commands
 
-### Running the POC
+### Initial Setup
 ```bash
-# Start NATS server
+# Generate TLS certificates and setup environment
+./setup-tls.sh
+
+# Start NATS server with TLS
 ./start-server.sh
 
-# Test server connectivity (optional)
+# Test TLS connectivity (optional)
 ./test-connectivity.sh
+```
 
+### Running the POC
+```bash
 # Run subscriber (Terminal 1)
-deno run --allow-net --allow-env subscriber.ts scenario1
-deno run --allow-net --allow-env subscriber.ts scenario2
+npx tsx subscriber.ts scenario1
+npx tsx subscriber.ts scenario2
 
-# Run publisher (Terminal 2)
-deno run --allow-net --allow-env publisher.ts scenario1 "Hello World"
-deno run --allow-net --allow-env publisher.ts scenario1 --interactive
-deno run --allow-net --allow-env publisher.ts scenario2 "Hello World"
-deno run --allow-net --allow-env publisher.ts scenario2 --interactive
+# Run publisher (Terminal 2)  
+npx tsx publisher.ts scenario1 "Hello World"
+npx tsx publisher.ts scenario1 --interactive
+npx tsx publisher.ts scenario2 "Hello World"
+npx tsx publisher.ts scenario2 --interactive
 ```
 
 ### Testing and Debugging
 ```bash
-# Debug permissions
-deno run --allow-net --allow-env debug-permissions.ts
+# Debug TLS permissions
+npx tsx debug-permissions.ts
 
-# Simple permission test
-deno run --allow-net --allow-env simple-permission-test.ts
+# Simple TLS permission test
+npx tsx simple-permission-test.ts
 
-# Monitor server
+# Monitor server and TLS status
 curl http://localhost:8222/varz
 curl http://localhost:8222/connz
-curl http://localhost:8222/accountz
+curl http://localhost:8222/varz | grep -i tls
+
+# Verify certificates
+openssl verify -CAfile certs/ca-cert.pem certs/foo-cert.pem
+openssl verify -CAfile certs/ca-cert.pem certs/bar-cert.pem
 ```
 
 ## Architecture
@@ -46,11 +56,13 @@ curl http://localhost:8222/accountz
 ### Core Components
 - **subscriber.ts**: Dual subscription client that listens to multiple subject patterns simultaneously
 - **publisher.ts**: Request/fallback publisher that attempts preferred subjects before falling back to alternatives
-- **nats-server.conf**: NATS server configuration defining user-based permissions
+- **nats-server.conf**: NATS server configuration defining TLS authentication and user-based permissions
 
-### User Structure
-- **Foo User** (`foo_user`/`foo_pass`): Full access to both `rpc.hello.world` and `broad.rpc.>` subjects
-- **Bar User** (`bar_user`/`bar_pass`): Limited access to only `broad.rpc.>` subjects (no access to `rpc.hello.world`)
+### User Structure (TLS Certificate-based)
+- **Foo User** (cert CN: `foo_user`): Full access to both `rpc.hello.world` and `broad.rpc.>` subjects
+- **Bar User** (cert CN: `bar_user`): Limited access to only `broad.rpc.>` subjects (no access to `rpc.hello.world`)
+- **Authentication**: Users identified by TLS client certificate Common Name (CN)
+- **Certificate Files**: `certs/foo-cert.pem`, `certs/bar-cert.pem` with corresponding private keys
 
 ### Message Flow Pattern
 1. Publishers attempt primary subject (e.g., `rpc.hello.world`)
@@ -64,16 +76,20 @@ curl http://localhost:8222/accountz
 ## Development Notes
 
 ### Prerequisites
-- NATS Server v2.10+ (install via `brew install nats-server` or download from GitHub)
-- Deno Runtime v1.28+ for TypeScript execution
-- Optional: NATS CLI for connectivity testing (`go install github.com/nats-io/natscli/nats@latest`)
+- NATS Server v2.10+ with TLS support (install via `brew install nats-server` or download from GitHub)
+- Node.js Runtime v18+ with tsx for TypeScript execution
+- OpenSSL for certificate generation (usually pre-installed on macOS/Linux)
+- Optional: NATS CLI for TLS connectivity testing (`go install github.com/nats-io/natscli/nats@latest`)
 
-### Permissions System
-The NATS server uses user-based authorization where:
-- Permissions are enforced at the protocol level
+### TLS Authentication & Permissions System
+The NATS server uses TLS client certificate authentication where:
+- User identity is determined by certificate Common Name (CN)
+- TLS mutual authentication ensures only valid certificate holders can connect
+- Permissions are enforced at the protocol level based on certificate CN
 - Publish violations are logged but don't throw client exceptions
 - Request timeouts occur when no authorized subscribers exist
 - `_INBOX.>` subjects are required for request/reply patterns
+- All connections must use `tls://` protocol instead of `nats://`
 
 ### Interactive Mode Commands
 - Regular message: `Hello World!`

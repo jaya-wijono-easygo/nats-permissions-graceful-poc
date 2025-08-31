@@ -1,18 +1,19 @@
-# NATS User Permissions POC
+# NATS User Permissions POC with TLS Authentication
 
-A Proof of Concept demonstrating NATS messaging behavior with user-based permissions and automatic subject routing fallbacks.
+A Proof of Concept demonstrating NATS messaging behavior with TLS certificate-based user authentication, permissions, and automatic subject routing fallbacks.
 
 ## 🎯 Purpose
 
-This POC demonstrates how NATS server permissions control message routing between different users and how applications can implement intelligent fallback patterns when publishing to subjects with restricted access.
+This POC demonstrates how NATS server uses TLS client certificates for user authentication and authorization, controlling message routing between different users, and how applications can implement intelligent fallback patterns when publishing to subjects with restricted access.
 
 ### Key Concepts Demonstrated
 
-1. **User-Based Permissions**: Different users with varying subject access levels
-2. **Permission-Based Routing**: Messages automatically route to allowed subjects when primary subjects are restricted
-3. **Request/Reply Patterns**: Demonstrating how NATS request/reply works across permission boundaries
-4. **Dual Subscriptions**: Single subscriber listening to multiple subject patterns simultaneously
-5. **Graceful Fallbacks**: Publishers that attempt preferred subjects before falling back to alternatives
+1. **TLS Certificate Authentication**: Users authenticated via TLS client certificates instead of passwords
+2. **User-Based Permissions**: Different users with varying subject access levels based on certificate CN
+3. **Permission-Based Routing**: Messages automatically route to allowed subjects when primary subjects are restricted
+4. **Request/Reply Patterns**: Demonstrating how NATS request/reply works across permission boundaries with TLS
+5. **Dual Subscriptions**: Single subscriber listening to multiple subject patterns simultaneously
+6. **Graceful Fallbacks**: Publishers that attempt preferred subjects before falling back to alternatives
 
 ## 📋 Test Scenarios
 
@@ -28,15 +29,21 @@ This POC demonstrates how NATS server permissions control message routing betwee
 
 ## 🏗️ Architecture
 
-### User Permissions
+### User Authentication & Permissions
 
-| User | Username | Password | Allowed Subjects |
-|---------|----------|----------|------------------|
-| **Foo** | `foo_user` | `foo_pass` | `rpc.hello.world`, `_INBOX.>`, `broad.rpc.>` |
-| **Bar** | `bar_user` | `bar_pass` | `_INBOX.>`, `broad.rpc.>` (no `rpc.hello.world`) |
+| User | Certificate CN | Certificate Files | Allowed Subjects |
+|---------|----------------|------------------|------------------|
+| **Foo** | `foo_user` | `foo-cert.pem`, `foo-key.pem` | `rpc.hello.world`, `_INBOX.>`, `broad.rpc.>` |
+| **Bar** | `bar_user` | `bar-cert.pem`, `bar-key.pem` | `_INBOX.>`, `broad.rpc.>` (no `rpc.hello.world`) |
+
+### TLS Authentication
+- **Server Certificate**: `server-cert.pem`, `server-key.pem` - Server TLS certificate
+- **CA Certificate**: `ca-cert.pem` - Certificate Authority for client validation  
+- **Client Certificates**: User identity based on certificate CN (Common Name)
+- **Protocol**: All connections use `tls://` instead of `nats://`
 
 ### Subject Patterns
-- `rpc.hello.world` - Specific RPC endpoint (Foo only)
+- `rpc.hello.world` - Specific RPC endpoint (Foo user only)
 - `broad.rpc.>` - Wildcard for broad RPC access (both users)
 - `_INBOX.>` - NATS reply subjects (both users)
 
@@ -62,13 +69,13 @@ Publisher (Bar) → rpc.hello.world → ❌ Permission Denied
    # Download from: https://github.com/nats-io/nats-server/releases
    ```
 
-2. **Deno Runtime** v1.28+
+2. **Node.js Runtime** v18+
    ```bash
-   # macOS/Linux
-   curl -fsSL https://deno.land/install.sh | sh
+   # macOS
+   brew install node
    
-   # Windows
-   iwr https://deno.land/install.ps1 -useb | iex
+   # Linux/Windows
+   # Download from: https://nodejs.org
    ```
 
 3. **NATS CLI** (Optional, for testing)
@@ -76,9 +83,17 @@ Publisher (Bar) → rpc.hello.world → ❌ Permission Denied
    go install github.com/nats-io/natscli/nats@latest
    ```
 
+4. **OpenSSL** (for certificate generation)
+   ```bash
+   # Usually pre-installed on macOS/Linux
+   # Windows: Download from https://www.openssl.org/
+   openssl version  # Verify installation
+   ```
+
 ### System Requirements
-- Available ports: 4222 (NATS), 8222 (monitoring)
+- Available ports: 4222 (NATS TLS), 8222 (monitoring)
 - Network access for downloading TypeScript dependencies
+- OpenSSL for certificate generation
 
 ## 🚀 Setup Instructions
 
@@ -88,83 +103,93 @@ Publisher (Bar) → rpc.hello.world → ❌ Permission Denied
 mkdir nats-permissions-poc
 cd nats-permissions-poc
 
-# Save all the provided scripts to this directory
-# - nats-server-config.sh
+# Save all the provided files to this directory:
+# - setup-tls.sh
+# - generate-certs.sh
+# - nats-server.conf
 # - subscriber.ts  
 # - publisher.ts
 # - debug-permissions.ts (optional)
 # - simple-permission-test.ts (optional)
 ```
 
-### 2. Generate NATS Server Configuration
+### 2. Generate TLS Certificates and Setup
 ```bash
-# Make the setup script executable and run it
-chmod +x nats-server-config.sh
-bash nats-server-config.sh
+# Run the complete TLS setup (generates certs and prepares scripts)
+./setup-tls.sh
 ```
 
 This creates:
-- `nats-poc-config/` directory
-- `nats-server.conf` - Server configuration with users
-- `start-server.sh` - Server startup script
-- `test-connectivity.sh` - Connection verification script
+- `certs/` directory with all TLS certificates
+- `start-server.sh` - Server startup script configured for TLS
+- Executable permissions on all scripts
 
-### 3. Start NATS Server
+**Generated Certificate Files:**
+- `ca-cert.pem`, `ca-key.pem` - Certificate Authority
+- `server-cert.pem`, `server-key.pem` - NATS server certificates
+- `foo-cert.pem`, `foo-key.pem` - Foo user client certificates
+- `bar-cert.pem`, `bar-key.pem` - Bar user client certificates
+
+### 3. Start NATS Server with TLS
 ```bash
-cd nats-poc-config
 ./start-server.sh
 ```
 
 **Expected Output:**
 ```
-Starting NATS Server with POC configuration...
+🚀 Starting NATS Server with TLS authentication...
+=================================================
+🔐 Starting NATS server with TLS client certificate authentication...
 [INF] Starting nats-server version 2.10.x
-[INF] Listening for client connections on 0.0.0.0:4222
+[INF] Listening for TLS client connections on 0.0.0.0:4222
 [INF] Starting http monitor on 0.0.0.0:8222
 [INF] Server is ready
 ```
 
-### 4. Verify Setup (Optional)
+### 4. Verify TLS Setup (Optional)
 ```bash
-# Test basic connectivity
+# Test TLS connectivity with certificates
 ./test-connectivity.sh
 
-# Or check server status
+# Check server status and TLS configuration
 curl http://localhost:8222/varz
+curl http://localhost:8222/connz
 ```
 
 ## 🎮 Running the POC
+
+✨ **Using Node.js with TLS Mutual Authentication**
 
 ### Scenario 1: Bar Publisher → Foo Subscriber
 
 **Terminal 1** - Start Foo subscriber:
 ```bash
-deno run --allow-net --allow-env subscriber.ts scenario1
+npx tsx subscriber.ts scenario1
 ```
 
 **Terminal 2** - Run Bar publisher:
 ```bash
 # Single message test
-deno run --allow-net --allow-env publisher.ts scenario1 "Hello from Bar user"
+npx tsx publisher.ts scenario1 "Hello from Bar user"
 
-# Interactive mode (multiple messages)
-deno run --allow-net --allow-env publisher.ts scenario1 --interactive
+# Interactive mode (multiple messages) 
+npx tsx publisher.ts scenario1 --interactive
 ```
 
 ### Scenario 2: Foo Publisher → Bar Subscriber
 
 **Terminal 1** - Start Bar subscriber:
 ```bash
-deno run --allow-net --allow-env subscriber.ts scenario2
+npx tsx subscriber.ts scenario2
 ```
 
 **Terminal 2** - Run Foo publisher:
 ```bash
 # Single message test  
-deno run --allow-net --allow-env publisher.ts scenario2 "Hello from Foo user"
+npx tsx publisher.ts scenario2 "Hello from Foo user"
 
 # Interactive mode
-deno run --allow-net --allow-env publisher.ts scenario2 --interactive
+npx tsx publisher.ts scenario2 --interactive
 ```
 
 ## 📊 Expected Results
@@ -227,13 +252,24 @@ exit
 
 ## 🐛 Debugging Tools
 
-### Permission Testing
+### TLS Permission Testing
 ```bash
-# Test which subjects each user can access
-deno run --allow-net --allow-env debug-permissions.ts
+# Test which subjects each user can access with TLS certificates
+npx tsx debug-permissions.ts
 
-# Simple permission validation
-deno run --allow-net --allow-env simple-permission-test.ts
+# Simple TLS permission validation
+npx tsx simple-permission-test.ts
+```
+
+### Certificate Verification
+```bash
+# Verify certificate details
+openssl x509 -in certs/foo-cert.pem -text -noout | grep CN
+openssl x509 -in certs/bar-cert.pem -text -noout | grep CN
+
+# Test certificate chain
+openssl verify -CAfile certs/ca-cert.pem certs/foo-cert.pem
+openssl verify -CAfile certs/ca-cert.pem certs/bar-cert.pem
 ```
 
 ### Server Monitoring
@@ -289,33 +325,53 @@ nats-permissions-poc/
 
 ## 🚨 Troubleshooting
 
-### Common Issues
+### Common TLS Issues
 
-**"Connection refused" errors:**
+**"Connection refused" or TLS errors:**
 ```bash
-# Ensure NATS server is running
-cd nats-poc-config && ./start-server.sh
+# Ensure NATS server is running with TLS
+./start-server.sh
+
+# Check if certificates exist
+ls -la certs/
+
+# Regenerate certificates if needed
+./generate-certs.sh
+```
+
+**"Certificate verification failed" errors:**
+```bash
+# Verify certificate chain
+openssl verify -CAfile certs/ca-cert.pem certs/foo-cert.pem
+openssl verify -CAfile certs/ca-cert.pem certs/bar-cert.pem
+
+# Check certificate CN matches expected user
+openssl x509 -in certs/foo-cert.pem -text -noout | grep "CN="
 ```
 
 **"No responders" errors:**  
 ```bash
 # Start subscriber first, then publisher
 # Subscribers must be active before publisher sends requests
+# Both must use correct TLS certificates
 ```
 
 **Permission not working:**
 ```bash
-# Verify server configuration
-curl http://localhost:8222/varz | grep auth
+# Verify server TLS configuration
+curl http://localhost:8222/varz | grep -i tls
 
-# Check server logs for errors
-tail -20 nats-poc-config/nats-server.log
+# Check server logs for TLS/auth errors
+tail -20 nats-server.log
 ```
 
-**TypeScript import errors:**
+**Node.js/npm issues:**
 ```bash
-# Clear Deno cache and retry
-deno cache --reload subscriber.ts publisher.ts
+# Install dependencies if missing
+npm install
+
+# Clear npm cache and reinstall
+npm cache clean --force && npm install
 ```
 
 ### Port Conflicts
@@ -323,6 +379,37 @@ If ports 4222 or 8222 are in use:
 1. Stop existing NATS servers: `pkill nats-server`
 2. Check port usage: `lsof -i :4222` and `lsof -i :8222`
 3. Modify ports in `nats-server.conf` if needed
+
+## 🔐 TLS Certificate Management
+
+### Certificate Renewal
+```bash
+# Certificates are valid for 365 days by default
+# Check certificate expiration
+openssl x509 -in certs/server-cert.pem -text -noout | grep "Not After"
+
+# Regenerate all certificates
+rm -rf certs/
+./generate-certs.sh
+```
+
+### Adding New Users
+```bash
+# Generate new user certificate (example: alice_user)
+openssl genrsa -out certs/alice-key.pem 2048
+openssl req -new -key certs/alice-key.pem -out alice-csr.pem -subj "/CN=alice_user/O=NATS-CLIENT"
+openssl x509 -req -in alice-csr.pem -CA certs/ca-cert.pem -CAkey certs/ca-key.pem -CAcreateserial -out certs/alice-cert.pem -days 365
+rm alice-csr.pem
+
+# Add user to nats-server.conf authorization section
+```
+
+### Security Best Practices
+- Keep private keys (`*-key.pem`) secure with 600 permissions
+- Protect the CA private key (`ca-key.pem`) - consider offline storage for production
+- Use shorter certificate validity periods in production (30-90 days)
+- Implement certificate rotation procedures
+- Monitor certificate expiration dates
 
 ## 🔗 Related Documentation
 

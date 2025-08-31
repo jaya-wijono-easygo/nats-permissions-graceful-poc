@@ -1,0 +1,33 @@
+{
+  "name": "nats-permissions-graceful-poc",
+  "version": "1.0.0",
+  "description": "NATS Proof of Concept demonstrating TLS certificate-based user authentication and permissions",
+  "type": "module",
+  "main": "subscriber.ts",
+  "scripts": {
+    "subscriber:scenario1": "tsx subscriber.ts scenario1",
+    "subscriber:scenario2": "tsx subscriber.ts scenario2",
+    "publisher:scenario1": "tsx publisher.ts scenario1",
+    "publisher:scenario2": "tsx publisher.ts scenario2",
+    "debug": "tsx debug-permissions.ts",
+    "test": "tsx simple-permission-test.ts"
+  },
+  "dependencies": {
+    "nats": "^2.28.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "nats",
+    "tls",
+    "mutual-auth",
+    "certificates",
+    "permissions",
+    "messaging"
+  ],
+  "author": "",
+  "license": "MIT"
+}
