@@ -99,8 +99,33 @@ openssl req -new -key bar-key.pem -out bar-csr.pem -subj "/CN=bar_user/O=NATS-CL
 echo "📋 Step 14: Generating Bar user certificate..."
 openssl x509 -req -in bar-csr.pem -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial -out bar-cert.pem -days $DAYS -extfile bar-ext.conf
 
+# Create MMM user certificate extension file with SANs
+echo "📋 Step 15: Creating MMM user certificate extension file..."
+cat > mmm-ext.conf << EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+email.1 = mmm@localhost
+DNS.1 = mmm_user
+EOF
+
+# Generate MMM user private key
+echo "📋 Step 16: Generating MMM user private key..."
+openssl genrsa -out mmm-key.pem 2048
+
+# Generate MMM user certificate signing request
+echo "📋 Step 17: Generating MMM user certificate signing request..."
+openssl req -new -key mmm-key.pem -out mmm-csr.pem -subj "/CN=mmm_user/O=NATS-CLIENT"
+
+# Generate MMM user certificate signed by CA with extensions
+echo "📋 Step 18: Generating MMM user certificate..."
+openssl x509 -req -in mmm-csr.pem -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial -out mmm-cert.pem -days $DAYS -extfile mmm-ext.conf
+
 # Clean up temporary files
-echo "📋 Step 15: Cleaning up temporary files..."
+echo "📋 Step 19: Cleaning up temporary files..."
 rm -f *.csr *.conf ca-cert.srl
 
 # Set appropriate permissions
@@ -120,6 +145,8 @@ echo "  - foo-cert.pem     (Foo user certificate)"
 echo "  - foo-key.pem      (Foo user private key)"
 echo "  - bar-cert.pem     (Bar user certificate)"
 echo "  - bar-key.pem      (Bar user private key)"
+echo "  - mmm-cert.pem     (MMM user certificate)"
+echo "  - mmm-key.pem      (MMM user private key)"
 echo ""
 echo "🔒 Certificate validity: $DAYS days"
 echo ""

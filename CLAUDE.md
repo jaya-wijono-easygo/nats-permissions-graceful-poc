@@ -85,7 +85,7 @@ openssl verify -CAfile certs/ca-cert.pem certs/bar-cert.pem
 - **Bar User** (cert SAN: `bar@localhost`): Limited access to only `broad.rpc.>` subjects (no access to `rpc.hello.world`)
 - **MMM User** (cert SAN: `mmm@localhost`): Full access like Foo user (for Scenario 3 testing)
 - **Authentication**: Users identified by TLS client certificate email Subject Alternative Names (SANs)
-- **Certificate Files**: `certs/foo-cert.pem`, `certs/bar-cert.pem` with corresponding private keys
+- **Certificate Files**: `certs/foo-cert.pem`, `certs/bar-cert.pem`, `certs/mmm-cert.pem` with corresponding private keys
 - **Cluster Access**: Main cluster enforces restrictions, leaf cluster provides fallback access
 
 ### Message Flow Pattern

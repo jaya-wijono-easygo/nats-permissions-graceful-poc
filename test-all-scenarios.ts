@@ -39,8 +39,8 @@ class AllScenariosTestSuite {
     },
     mmm: {
       name: "MMM",
-      certFile: "./certs/foo-cert.pem",
-      keyFile: "./certs/foo-key.pem",
+      certFile: "./certs/mmm-cert.pem",
+      keyFile: "./certs/mmm-key.pem",
       caFile: "./certs/ca-cert.pem"
     }
   };

@@ -48,9 +48,7 @@ This POC demonstrates how NATS server uses TLS client certificates for user auth
 |---------|----------------|------------------|-------------------|--------------------|
 | **Foo** | `foo@localhost` | `foo-cert.pem`, `foo-key.pem` | `rpc.>`, `broad.rpc.>`, `broadcast.>`, `alert.>`, `_INBOX.>` | Full access (but prefers main) |
 | **Bar** | `bar@localhost` | `bar-cert.pem`, `bar-key.pem` | `broad.rpc.>`, `_INBOX.>` (restricted) | `>` (all subjects via fallback) |
-| **MMM** | `mmm@localhost` | Same as Foo* | `rpc.>`, `broad.rpc.>`, `broadcast.>`, `alert.>`, `_INBOX.>` | Full access (but prefers main) |
-
-*Note: MMM uses Foo's certificate for demo purposes
+| **MMM** | `mmm@localhost` | `mmm-cert.pem`, `mmm-key.pem` | `rpc.>`, `broad.rpc.>`, `broadcast.>`, `alert.>`, `_INBOX.>` | Full access (but prefers main) |
 
 ### TLS Authentication
 - **Server Certificate**: `server-cert.pem`, `server-key.pem` - Server TLS certificate for both clusters
@@ -645,6 +643,30 @@ nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs
 # Terminal 2: Then send request from Bar via leaf
 nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
      --server=tls://localhost:4223 request "rpc.hello.world" "Request from Bar via Leaf" --timeout=5s
+```
+
+**Connect as MMM User (Full Access):**
+```bash
+# Test connection to main cluster
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/mmm-cert.pem --tlskey=./certs/mmm-key.pem \
+     --server=tls://localhost:4222 server check connection
+
+# Subscribe to any subject (has full access like Foo)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/mmm-cert.pem --tlskey=./certs/mmm-key.pem \
+     --server=tls://localhost:4222 subscribe "rpc.hello.world"
+
+# Publish to any subject
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/mmm-cert.pem --tlskey=./certs/mmm-key.pem \
+     --server=tls://localhost:4222 publish "rpc.hello.world" "Hello from MMM via CLI"
+
+# Request-reply test on main cluster
+# Terminal 1: Start reply server first
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/mmm-cert.pem --tlskey=./certs/mmm-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Response from MMM"
+
+# Terminal 2: Then send request
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/mmm-cert.pem --tlskey=./certs/mmm-key.pem \
+     --server=tls://localhost:4222 request "rpc.hello.world" "Request from MMM" --timeout=5s
 ```
 
 #### Cross-Cluster Communication Test

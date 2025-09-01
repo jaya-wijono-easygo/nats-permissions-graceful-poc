@@ -311,10 +311,8 @@ async function main() {
     },
     mmm: {
       name: "MMM",
-      // Note: Using foo certs for MMM since we haven't generated separate certs
-      // In production, MMM would have its own certificate with mmm@localhost SAN
-      certFile: "./certs/foo-cert.pem",
-      keyFile: "./certs/foo-key.pem",
+      certFile: "./certs/mmm-cert.pem",
+      keyFile: "./certs/mmm-key.pem",
       caFile: "./certs/ca-cert.pem"
     }
   };

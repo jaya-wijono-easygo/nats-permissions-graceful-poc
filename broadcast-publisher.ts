@@ -295,8 +295,8 @@ async function main() {
     },
     mmm: {
       name: "MMM",
-      certFile: "./certs/foo-cert.pem", // Using foo certs for MMM
-      keyFile: "./certs/foo-key.pem",
+      certFile: "./certs/mmm-cert.pem",
+      keyFile: "./certs/mmm-key.pem",
       caFile: "./certs/ca-cert.pem"
     }
   };
