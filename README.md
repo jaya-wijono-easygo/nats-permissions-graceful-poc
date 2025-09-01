@@ -290,6 +290,55 @@ npx tsx publisher.ts scenario2 "Hello from Foo user"
 npx tsx publisher.ts scenario2 --interactive
 ```
 
+### Scenario 3: Broadcast Pattern with Leaf Node Architecture
+
+**Setup** (one-time):
+```bash
+./start-clusters.sh  # Starts both main and leaf clusters
+```
+
+**Terminal 1** - Start subscribers with automatic cluster selection:
+```bash
+npx tsx broadcast-subscriber.ts foo  # Connects to main cluster
+npx tsx broadcast-subscriber.ts bar  # Auto-falls back to leaf cluster  
+npx tsx broadcast-subscriber.ts mmm  # Connects to main cluster
+```
+
+**Terminal 2** - Run broadcast publisher:
+```bash
+# Test broadcast pattern
+npx tsx scenario3-test.ts
+
+# Interactive broadcasting
+npx tsx broadcast-publisher.ts --interactive
+```
+
+### Scenario 4: Request-Reply with Leaf Node Architecture
+
+✨ **Infrastructure-level solution - no application fallback needed!**
+
+**Terminal 1** - Start request handler:
+```bash
+npx tsx request-reply-leaf-subscriber.ts foo  # Handles requests on main cluster
+```
+
+**Terminal 2** - Run publishers with automatic fallback:
+```bash
+# Bar tries main cluster first, falls back to leaf cluster automatically
+npx tsx request-reply-leaf-publisher.ts bar
+
+# Foo tries main cluster first, succeeds immediately (optimal path)
+npx tsx request-reply-leaf-publisher.ts foo
+
+# Test with custom subject and message
+npx tsx request-reply-leaf-publisher.ts bar rpc.hello.world "Fallback to leaf!"
+```
+
+**Terminal 3** - Run automated comparison test:
+```bash
+npx tsx scenario4-test.ts  # Compares single-cluster vs leaf architecture
+```
+
 ## 📊 Expected Results
 
 ### Scenario 1 Output
@@ -361,12 +410,83 @@ npx tsx publisher.ts scenario2 --interactive
    🌿 Via leaf cluster fallback - message available despite restrictions!
 ```
 
+### Scenario 4 Output (Request-Reply with Leaf Nodes)
+
+**Bar Publisher (Automatic Fallback):**
+```bash
+🔗 Starting connection process for Bar...
+   Strategy: Try main cluster first, test permissions, fallback to leaf if needed
+
+🎯 Attempting connection to main cluster...
+   URL: tls://localhost:4222
+✅ TLS connection established to main cluster
+   🧪 Testing publish capabilities for bar on main cluster...
+   📝 Bar on main cluster: Testing restricted subject access
+   ❌ Bar cannot access rpc.hello.world on main cluster (likely permission denied)
+   ⏭️  Trying next cluster...
+
+🎯 Attempting connection to leaf cluster...
+   URL: tls://localhost:4223
+✅ TLS connection established to leaf cluster
+   ✅ Bar on leaf cluster: Full access available
+✅ Successfully validated permissions on leaf cluster
+
+📤 Sending request-reply message...
+   Subject: rpc.hello.world
+   Publisher: Bar
+   Via cluster: leaf (Leaf broadcast relay cluster)
+   ⏳ Waiting for response...
+   
+   ✅ SUCCESS: Received response!
+   📍 Response from: Foo
+   🌉 Cross-cluster communication confirmed! (leaf → main)
+   💡 Success via leaf cluster - automatic fallback worked!
+```
+
+**Foo Subscriber (Handling Cross-Cluster Requests):**
+```bash
+📨 [Foo] Request #1
+   📍 Subject: rpc.hello.world
+   🏠 Subscriber cluster: main (Main restrictive cluster)
+   👤 From: Bar
+   🌿 Publisher cluster: leaf
+   🌉 Cross-cluster request! leaf → main
+   ✅ Reply sent
+   🌉 Reply routed back: main → leaf
+```
+
 **Key Benefits Demonstrated:**
 - ❌ **No Message Duplication** in main cluster (only leaf sync overhead)
 - ✅ **Automatic Permission-based Routing** (Bar falls back transparently)
 - ✅ **Complete Message Coverage** (Bar receives ALL broadcast messages)
 - ✅ **Publisher Transparency** (Publishers don't need special logic)
 - ✅ **Production-Ready Scalability** (Solves M:N broadcasting edge case)
+
+## 📊 Scenario Comparison Table
+
+| Scenario | Pattern | Architecture | Bar → `rpc.hello.world` | Solution Level | Benefits |
+|----------|---------|--------------|-------------------------|----------------|----------|
+| **1 & 2** | Request-Reply | Single Cluster | ❌ NoResponder Error | Application | • Simple setup<br>• Traditional approach |
+| **3** | Pub-Sub | Leaf Node | ✅ Via leaf cluster | Infrastructure | • No silent message loss<br>• Broadcast coverage<br>• M:N scaling |
+| **4** | Request-Reply | Leaf Node | ✅ Via leaf cluster | Infrastructure | • No fallback code needed<br>• Cross-cluster routing<br>• Transparent to apps |
+
+### Key Insights:
+
+🔴 **Traditional Single Cluster (Scenarios 1 & 2):**
+- Bar user hits permission restrictions
+- Requires application-level fallback logic
+- Publishers must handle NoResponder errors
+- Works but adds complexity to application code
+
+🟢 **Leaf Node Architecture (Scenarios 3 & 4):**
+- Infrastructure handles permission routing
+- No application code changes needed
+- Bar gets full access via leaf cluster
+- Cleaner, more maintainable solutions
+- Better production reliability
+
+💡 **Production Recommendation:**
+Use leaf node architecture (Scenarios 3 & 4) for production systems where users have different permission levels. It eliminates permission-based failures at the infrastructure level rather than requiring application workarounds.
 
 ## 🔧 Interactive Mode Commands
 
@@ -421,13 +541,20 @@ npx tsx broadcast-publisher.ts --interactive
 
 ## 🐛 Debugging Tools
 
-### TLS Permission Testing
+### Comprehensive Testing
 ```bash
-# Test which subjects each user can access with TLS certificates
-npx tsx debug-permissions.ts
+# Run complete test suite (all scenarios)
+npx tsx test-all-scenarios.ts
 
-# Simple TLS permission validation
-npx tsx simple-permission-test.ts
+# Individual scenario tests
+npx tsx scenario4-test.ts          # Scenario 4: Request-reply with leaf nodes
+npx tsx scenario3-test.ts          # Scenario 3: Broadcasting with leaf nodes
+
+# Permission debugging
+npx tsx debug-permissions.ts main  # Test permissions on main cluster
+npx tsx debug-permissions.ts leaf  # Test permissions on leaf cluster
+npx tsx simple-permission-test.ts main  # Simple validation on main cluster
+npx tsx simple-permission-test.ts leaf  # Simple validation on leaf cluster
 ```
 
 ### Certificate Verification
@@ -439,6 +566,186 @@ openssl x509 -in certs/bar-cert.pem -text -noout | grep CN
 # Test certificate chain
 openssl verify -CAfile certs/ca-cert.pem certs/foo-cert.pem
 openssl verify -CAfile certs/ca-cert.pem certs/bar-cert.pem
+```
+
+### Manual Testing with NATS CLI
+
+💡 **Prerequisites**: Install NATS CLI with `go install github.com/nats-io/natscli/nats@latest`
+
+#### Testing Main Cluster (Port 4222)
+
+**Connect as Foo User (Full Access):**
+```bash
+# Test server connection
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 server check connection
+
+# Subscribe to restricted subject
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 subscribe "rpc.hello.world"
+
+# Publish to restricted subject
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 publish "rpc.hello.world" "Hello from Foo via CLI"
+
+# Request-reply test (requires reply server - see below)
+# Terminal 1: Start reply server first
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Response from Foo"
+
+# Terminal 2: Then send request
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 request "rpc.hello.world" "Request from Foo" --timeout=5s
+```
+
+**Connect as Bar User (Restricted Access):**
+```bash
+# Test connection
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 server check connection
+
+# Try to subscribe to restricted subject (should fail/be limited)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 subscribe "rpc.hello.world"
+
+# Subscribe to allowed subject (should work)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 subscribe "broad.rpc.>"
+
+# Publish to restricted subject (silently dropped - check server logs)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 publish "rpc.hello.world" "Hello from Bar via CLI"
+
+# Publish to allowed subject (should work)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 publish "broad.rpc.hello.world" "Hello from Bar via CLI"
+```
+
+#### Testing Leaf Cluster (Port 4223)
+
+**Connect as Bar User (Full Access on Leaf):**
+```bash
+# Test connection to leaf cluster
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 server check connection
+
+# Subscribe to previously restricted subject (now works!)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 subscribe "rpc.hello.world"
+
+# Publish to previously restricted subject (now works!)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 publish "rpc.hello.world" "Hello from Bar via Leaf CLI"
+
+# Request-reply test via leaf cluster
+# Terminal 1: Start reply server first (use Foo on main cluster)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Response from Foo to Bar"
+
+# Terminal 2: Then send request from Bar via leaf
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 request "rpc.hello.world" "Request from Bar via Leaf" --timeout=5s
+```
+
+#### Cross-Cluster Communication Test
+
+**Terminal 1** - Subscribe on Main Cluster (Foo):
+```bash
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 subscribe "rpc.hello.world"
+```
+
+**Terminal 2** - Publish from Leaf Cluster (Bar):
+```bash
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 publish "rpc.hello.world" "Cross-cluster message from Bar!"
+```
+
+**Result**: Foo on main cluster should receive the message from Bar via leaf cluster! 🌉
+
+#### Request-Reply Across Clusters
+
+**Terminal 1** - Start responder on Main Cluster (Foo):
+```bash
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Response from Foo on main cluster"
+```
+
+**Terminal 2** - Start reply server (Foo on main cluster):
+```bash
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Cross-cluster response from Foo"
+```
+
+**Terminal 3** - Send request from Leaf Cluster (Bar):
+```bash
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 request "rpc.hello.world" "Request from Bar via leaf" --timeout=10s
+```
+
+**Expected Output**: Bar gets response from Foo across clusters! 🌟
+
+#### Individual User Reply Server Examples
+
+**Start Foo as Reply Server (Main Cluster):**
+```bash
+# Foo can handle requests on main cluster (full permissions)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 reply "rpc.hello.world" "Hello from Foo reply server"
+```
+
+**Start Bar as Reply Server (Leaf Cluster):**
+```bash
+# Bar must use leaf cluster to handle restricted subjects
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 reply "rpc.hello.world" "Hello from Bar reply server via leaf"
+```
+
+**Test Requests to Different Reply Servers:**
+```bash
+# Request to Foo on main cluster
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 request "rpc.hello.world" "Request for Foo" --timeout=5s
+
+# Request to Bar via leaf cluster (demonstrates cross-cluster routing)
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 request "rpc.hello.world" "Request for Bar via leaf" --timeout=5s
+```
+
+**💡 Note**: When both Foo and Bar reply servers are running, NATS will load-balance requests between them, demonstrating how the leaf node architecture enables seamless service distribution across clusters.
+
+#### Monitoring Commands
+
+```bash
+# Check cluster status
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 server info
+
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4223 server info
+
+# Monitor leaf node connections
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/foo-cert.pem --tlskey=./certs/foo-key.pem \
+     --server=tls://localhost:4222 server ls
+
+# Check server information
+nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 server info
+```
+
+#### Permission Testing Shortcuts
+
+**Test Bar's permissions evolution:**
+```bash
+# 1. Bar on main cluster - restricted
+echo "Testing Bar on main cluster (should fail for rpc.hello.world):"
+timeout 2s nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4222 subscribe "rpc.hello.world" || echo "❌ Failed as expected"
+
+# 2. Bar on leaf cluster - full access
+echo "Testing Bar on leaf cluster (should work for rpc.hello.world):"
+timeout 2s nats --tlsca=./certs/ca-cert.pem --tlscert=./certs/bar-cert.pem --tlskey=./certs/bar-key.pem \
+     --server=tls://localhost:4223 subscribe "rpc.hello.world" && echo "✅ Success via leaf cluster!"
 ```
 
 ### Server Monitoring
